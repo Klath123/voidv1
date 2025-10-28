@@ -1,37 +1,50 @@
-# Add these 2 lines at the top of api.py
-from dotenv import load_dotenv
-load_dotenv()
-
-
-from crew import SASESCrew
+# main.py
 import json
+from dotenv import load_dotenv
 
-def main():
-    # Initialize crew
+# 1. Load all environment variables
+# (GOOGLE_API_KEY, AZURE_VISION_ENDPOINT, AZURE_VISION_KEY)
+load_dotenv() 
+
+# 2. Import your main crew class
+from crew import SASESCrew
+
+def run_full_pipeline():
+    """
+    Initializes and runs the complete SASESCrew pipeline.
+    """
+    
+    # 3. Initialize the crew
+    print("Initializing SASESCrew with all agents...")
     crew = SASESCrew()
     
-    # Example usage
+    # --- Define Your Input Image Paths Here ---
+    
+    TEMPLATE_PATH = "data/template.jpg"
+    TEACHER_SHEET_PATH = "data/teacher_key_sheet.jpg"
+    STUDENT_SHEET_PATH = "data/student_sheet_001.jpg"
+    
+    # -----------------------------------------
+    
+    # 4. Run the crew
+    print(f"Starting full pipeline for: {STUDENT_SHEET_PATH}")
+    
     result = crew.process_answer_sheet(
-        template_path="data/template.jpg",
-        student_sheet_path="data/student_sheet_001.jpg",
-        reference_answers=[
-            {
-                "q_num": 1,
-                "type": "mcq",
-                "correct": "B",
-                "marks": 1
-            },
-            {
-                "q_num": 2,
-                "type": "fill_blank",
-                "correct": "photosynthesis",
-                "correct_options": ["photosynthesis", "photosynthetic"],
-                "marks": 2
-            }
-        ]
+        template_path=TEMPLATE_PATH,
+        teacher_sheet_path=TEACHER_SHEET_PATH,
+        student_sheet_path=STUDENT_SHEET_PATH
     )
     
-    print(json.dumps(result.model_dump(), indent=2))
+    # 5. Print the final result
+    print("\n--- Full Pipeline Complete ---")
+    print("Final Result:")
+    
+    # Use .model_dump() to get a clean JSON-serializable output
+    try:
+        print(json.dumps(result.model_dump(), indent=2))
+    except AttributeError:
+        # Fallback for older crewAI versions
+        print(result)
 
 if __name__ == "__main__":
-    main()
+    run_full_pipeline()

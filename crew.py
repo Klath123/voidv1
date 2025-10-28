@@ -1,83 +1,110 @@
+import os
 from crewai import Crew, Process, Task 
 from agents.alignment_agent import create_alignment_agent
 from agents.ocr_agent import create_ocr_agent
 from agents.evaluation_agent import create_evaluation_agent
 from agents.validation_agent import create_validation_agent
-from tasks.alignment_tasks import create_alignment_task
-from tasks.ocr_tasks import create_ocr_task
-from tasks.evaluation_tasks import create_evaluation_task
 
-# NOTE: The definition of create_evaluation_task you provided is correct:
-# def create_evaluation_task(agent, student_answers, reference_answers):
-#     ...
+# --- IMPORT ALL THE TASK FUNCTIONS ---
+from tasks.alignment_tasks import create_alignment_task
+
+# --- THIS IS THE KEY IMPORT CHANGE ---
+# Import the two functions from your ocr_tasks.py file
+from tasks.ocr_tasks import (
+    create_key_generation_task, 
+    create_student_extraction_task
+)
+# --- END CHANGE ---
+
+from tasks.evaluation_tasks import create_evaluation_task
 
 class SASESCrew:
     def __init__(self):
-        # Create agents
+        # Create agents (this part is unchanged)
         self.alignment_agent = create_alignment_agent()
         self.ocr_agent = create_ocr_agent()
         self.evaluation_agent = create_evaluation_agent()
         self.validation_agent = create_validation_agent()
     
+    # --- THIS METHOD SIGNATURE IS UPDATED ---
+    # It no longer needs 'reference_answers'
+    # It now REQUIRES 'teacher_sheet_path'
     def process_answer_sheet(self, 
                              template_path: str,
-                             student_sheet_path: str,
-                             reference_answers: list,
-                             question_regions: list = None):
+                             teacher_sheet_path: str,
+                             student_sheet_path: str):
         """
-        Process a single answer sheet through the complete pipeline
+        Process a single answer sheet through the complete, image-based pipeline.
         """
         
-        # 1. Create the 'inputs' dictionary for kickoff.
-        inputs = {
-            "template_path": template_path,
-            "student_sheet_path": student_sheet_path,
-            "reference_answers": reference_answers,
-            "question_regions": question_regions or []
-        }
-
-        # 2. Create tasks as templates
+        # --- Define output file paths based on inputs ---
+        teacher_key_json_path = f"outputs/{os.path.splitext(os.path.basename(teacher_sheet_path))[0]}_key.json"
+        student_answers_json_path = f"outputs/{os.path.splitext(os.path.basename(student_sheet_path))[0]}_answers.json"
+        report_output_path = f"outputs/{os.path.splitext(os.path.basename(student_sheet_path))[0]}_report.json"
         
-        # Task 1: Alignment
-        alignment_task = create_alignment_task(
-            self.alignment_agent, 
-            template_path, 
-            student_sheet_path
+        # --- Alignment Phase (Tasks 1 & 2) ---
+        teacher_alignment_task = create_alignment_task(
+            self.alignment_agent,
+            template_path,
+            teacher_sheet_path,
+            sheet_type='teacher'
         )
         
-        # Task 2: OCR (depends on alignment)
-        ocr_task = create_ocr_task(
+        student_alignment_task = create_alignment_task(
+            self.alignment_agent,
+            template_path,
+            student_sheet_path,
+            sheet_type='student'
+        )
+        
+        # --- OCR Phase (Tasks 3 & 4) ---
+        key_generation_task = create_key_generation_task(
             self.ocr_agent,
-            question_regions=question_regions or [],
-            student_sheet_path=student_sheet_path # <-- New argument
+            teacher_sheet_path,
+            teacher_key_json_path
         )
-        ocr_task.context = [alignment_task] # <-- This is still correct!
-        # ...
+        # Set dependency on teacher alignment
+        key_generation_task.context = [teacher_alignment_task]
         
-        # Task 3: Evaluation (depends on OCR)
-        # *FIX APPLIED HERE:* Passing the two missing required arguments.
+        student_extraction_task = create_student_extraction_task(
+            self.ocr_agent,
+            student_sheet_path,
+            student_answers_json_path
+        )
+        # Set dependency on student alignment
+        student_extraction_task.context = [student_alignment_task]
+        
+        # --- Evaluation Phase (Task 5) ---
         evaluation_task = create_evaluation_task(
             self.evaluation_agent,
-            student_answers="OCR_OUTPUT_FROM_CONTEXT", # Placeholder for the OCR output
-            reference_answers=reference_answers          # Uses the method's input argument
+            teacher_key_json_path,    # Path to the key
+            student_answers_json_path, # Path to the student answers
+            report_output_path         # Path for the final report
         )
-        evaluation_task.context = [ocr_task] # The evaluation agent will read the student answers from here.
+        # Set dependency on *both* OCR tasks
+        evaluation_task.context = [key_generation_task, student_extraction_task]
         
-        # Task 4: Validation
+        # --- Validation Phase (Task 6) ---
         validation_task = Task(
             description="""
             Review the complete evaluation pipeline.
-            Check alignment confidence from the alignment task.
-            Review OCR quality from the OCR task.
+            Check alignment confidence from both alignment tasks.
+            Review OCR quality from both OCR tasks.
             Validate evaluation results from the evaluation task.
             Flag cases needing manual review and provide a final quality report.
             """,
             agent=self.validation_agent,
             expected_output="Final quality report as a JSON object, with a 'manual_review_needed' flag.",
-            context=[alignment_task, ocr_task, evaluation_task]
+            context=[
+                teacher_alignment_task,
+                student_alignment_task,
+                key_generation_task,
+                student_extraction_task,
+                evaluation_task
+            ]
         )
         
-        # 3. Create crew
+        # 2. Create crew
         crew = Crew(
             agents=[
                 self.alignment_agent,
@@ -86,8 +113,11 @@ class SASESCrew:
                 self.validation_agent
             ],
             tasks=[
-                alignment_task,
-                ocr_task,
+                # Tasks will run in correct order based on dependencies
+                teacher_alignment_task,
+                student_alignment_task,
+                key_generation_task,
+                student_extraction_task,
                 evaluation_task,
                 validation_task
             ],
@@ -95,7 +125,8 @@ class SASESCrew:
             verbose=True
         )
         
-        # 4. Execute
-        result = crew.kickoff(inputs=inputs)
+        # 3. Execute
+        # No inputs dict is needed, paths are passed via task descriptions
+        result = crew.kickoff()
         
         return result

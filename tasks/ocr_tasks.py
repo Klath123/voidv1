@@ -1,36 +1,43 @@
+# tasks/ocr_tasks.py
 from crewai import Task
-
-# In ocr_tasks.py
 import os
 
-def create_ocr_task(agent, question_regions, student_sheet_path):
-    
-    # --- ADD THIS ---
-    # Dynamically create a unique output path for the JSON
-    base_name = os.path.basename(student_sheet_path)
-    file_name, _ = os.path.splitext(base_name)
-    output_json_path = f"outputs/{file_name}_ocr_results.json"
-    # --- END ADD ---
+# --- TASK 1: FOR THE TEACHER'S KEY ---
 
+def create_key_generation_task(agent, teacher_sheet_path, key_output_path):
+    """
+    Creates the task for generating the master answer key from the teacher's sheet.
+    """
     return Task(
         description=f"""
-        Your goal is to perform OCR on an aligned answer sheet.
+        Generate the master answer key.
+        1.  **Input Image:** Use the teacher's answer sheet located at:
+            '{teacher_sheet_path}'
+        2.  **Output JSON:** Save the extracted answers to this *exact* file path:
+            '{key_output_path}'
         
-        1.  *FIND THE IMAGE:* Look in your context. The 'alignment_task'
-            provided its output. Find the 'aligned_image_path' value
-            from that output. This is the image you must process.
-            
-        2.  *DEFINE OUTPUT PATH:* You must save your results to this
-            exact file path: '{output_json_path}'
-            
-        3.  *PROCESS IMAGE:* Use your 'AzureOCRTool' with the
-            'aligned_image_path' you found and the 'output_json_path'
-            I provided.
-            
-        4.  *USE REGIONS (Optional):* The question regions are:
-            {question_regions}
+        Use your 'Azure OCR Tool' to process the image and save the formatted JSON.
         """,
         agent=agent,
-        expected_output=f"""A JSON object with the full OCR results, which has
-        also been saved to '{output_json_path}'."""
+        expected_output=f"The master answer key, saved as a JSON file to '{key_output_path}'."
+    )
+
+# --- TASK 2: FOR THE STUDENT'S SHEET ---
+
+def create_student_extraction_task(agent, student_sheet_path, student_output_path):
+    """
+    Creates the task for extracting answers from the student's sheet.
+    """
+    return Task(
+        description=f"""
+        Extract the student's answers.
+        1.  **Input Image:** Use the student's answer sheet located at:
+            '{student_sheet_path}'
+        2.  **Output JSON:** Save the extracted answers to this *exact* file path:
+            '{student_output_path}'
+        
+    Use your 'Azure OCR Tool' to process the image and save the formatted JSON.
+    """,
+        agent=agent,
+        expected_output=f"The student's answers, saved as a JSON file to '{student_output_path}'."
     )

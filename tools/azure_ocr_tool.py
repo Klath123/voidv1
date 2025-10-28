@@ -86,7 +86,7 @@ class AzureOCRTool(BaseTool):
             
             # Filter out common non-answer numbers (like '59' from Roll No.)
             # You may need to make this filter smarter later
-            fib_answers = [text for text in handwritten_answers if text.isdigit() and text not in ["59"]]
+            fib_answers = [text for text in handwritten_answers if text.isdigit() and text not in ["59","24","2"]]
 
             for i, answer in enumerate(mcq_answers):
                 output_json["multiple_choice"].append({

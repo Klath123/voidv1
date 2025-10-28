@@ -10,19 +10,19 @@
     },
     {
       "question_number": "3",
-      "selected_answer": "A"
-    },
-    {
-      "question_number": "4",
-      "selected_answer": "C"
-    },
-    {
-      "question_number": "5",
       "selected_answer": "B"
     },
     {
-      "question_number": "6",
+      "question_number": "4",
       "selected_answer": "A"
+    },
+    {
+      "question_number": "5",
+      "selected_answer": "A"
+    },
+    {
+      "question_number": "6",
+      "selected_answer": "C"
     }
   ],
   "fill_in_the_blanks": [
