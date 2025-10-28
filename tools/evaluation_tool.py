@@ -1,147 +1,124 @@
+import json
+import os
 from crewai.tools import BaseTool
-from typing import Dict, List
-import re
-from difflib import SequenceMatcher
+from typing import Dict, Any, List
 
-class EvaluationTool(BaseTool):
+class AnswerEvaluationTool(BaseTool):
     name: str = "Answer Evaluation Tool"
-    description: str = "Evaluates student answers against reference answers"
-    
-    def _run(self, student_answers: List[Dict], 
-             reference_answers: List[Dict]) -> dict:
+    description: str = (
+        "Compares a student's answer JSON file with the official answer key JSON file. "
+        "It calculates statistics like accuracy and precision, then saves "
+        "a detailed report to a new JSON file."
+    )
+
+    def _run(self, answer_key_path: str, student_answers_path: str, report_output_path: str) -> Dict[str, Any]:
         """
-        Evaluate student answers
+        Compares answer key file (key_path) to student answers file (student_path)
+        and saves a report (report_path).
         """
         try:
-            results = []
-            total_marks = 0
-            obtained_marks = 0
+            # --- 1. Load Both JSON Files ---
+            print(f"\n[EvaluationTool] Loading Answer Key: '{answer_key_path}'")
+            with open(answer_key_path, 'r') as f:
+                key_data = json.load(f)
             
-            for ref in reference_answers:
-                q_num = ref['q_num']
-                student_ans = next(
-                    (a for a in student_answers if a['q_num'] == q_num), 
-                    None
-                )
+            print(f"[EvaluationTool] Loading Student Answers: '{student_answers_path}'")
+            with open(student_answers_path, 'r') as f:
+                student_data = json.load(f)
+
+            # --- 2. Create Fast-Lookup Dictionaries ---
+            key_mcq = {item['question_number']: item['selected_answer'] for item in key_data.get('multiple_choice', [])}
+            key_fib = {item['question_prompt']: item['written_answer'] for item in key_data.get('fill_in_the_blanks', [])}
+            
+            student_mcq = {item['question_number']: item['selected_answer'] for item in student_data.get('multiple_choice', [])}
+            student_fib = {item['question_prompt']: item['written_answer'] for item in student_data.get('fill_in_the_blanks', [])}
+
+            # --- 3. Evaluate and Store Details ---
+            total_questions = 0
+            correct_answers = 0
+            wrong_answers = 0
+            unanswered = 0
+            detailed_results: List[Dict[str, Any]] = []
+
+            # Evaluate Multiple Choice
+            for q_num, correct_ans in key_mcq.items():
+                total_questions += 1
+                student_ans = student_mcq.get(q_num)
+                status = ""
                 
                 if not student_ans:
-                    results.append({
-                        'q_num': q_num,
-                        'marks_obtained': 0,
-                        'marks_total': ref['marks'],
-                        'status': 'unanswered',
-                        'confidence': 1.0
-                    })
-                    total_marks += ref['marks']
-                    continue
+                    unanswered += 1
+                    status = "unanswered"
+                elif student_ans.strip().upper() == correct_ans.strip().upper():
+                    correct_answers += 1
+                    status = "correct"
+                else:
+                    wrong_answers += 1
+                    status = "wrong"
                 
-                # Evaluate based on question type
-                evaluation = self._evaluate_answer(student_ans, ref)
-                
-                results.append(evaluation)
-                total_marks += ref['marks']
-                obtained_marks += evaluation['marks_obtained']
-            
-            return {
-                'success': True,
-                'total_marks': total_marks,
-                'obtained_marks': obtained_marks,
-                'percentage': (obtained_marks / total_marks * 100) if total_marks > 0 else 0,
-                'question_results': results
+                detailed_results.append({
+                    "question": f"MCQ {q_num}",
+                    "student_answer": student_ans or "N/A",
+                    "correct_answer": correct_ans,
+                    "status": status
+                })
+
+            # Evaluate Fill-in-the-Blanks
+            for q_prompt, correct_ans in key_fib.items():
+                total_questions += 1
+                student_ans = student_fib.get(q_prompt)
+                status = ""
+
+                if not student_ans:
+                    unanswered += 1
+                    status = "unanswered"
+                # Compare as case-insensitive strings
+                elif student_ans.strip().lower() == correct_ans.strip().lower():
+                    correct_answers += 1
+                    status = "correct"
+                else:
+                    wrong_answers += 1
+                    status = "wrong"
+
+                detailed_results.append({
+                    "question": q_prompt,
+                    "student_answer": student_ans or "N/A",
+                    "correct_answer": correct_ans,
+                    "status": status
+                })
+
+            # --- 4. Calculate Final Metrics (Accuracy & Precision) ---
+            total_answered = total_questions - unanswered
+            # Accuracy: Correct answers out of all possible questions
+            accuracy = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+            # Precision: Correct answers out of the questions the student attempted
+            precision = (correct_answers / total_answered) * 100 if total_answered > 0 else 0
+
+            final_report = {
+                "summary": {
+                    "total_questions": total_questions,
+                    "correct_answers": correct_answers,
+                    "wrong_answers": wrong_answers,
+                    "unanswered": unanswered,
+                    "accuracy_percent": f"{accuracy:.2f}%",
+                    "precision_of_answered_percent": f"{precision:.2f}%"
+                },
+                "detailed_results": detailed_results
             }
+
+            # --- 5. Save Report to File ---
+            os.makedirs(os.path.dirname(report_output_path), exist_ok=True)
+            with open(report_output_path, 'w') as f:
+                json.dump(final_report, f, indent=4)
             
+            print(f"[EvaluationTool] Successfully saved report to {report_output_path}")
+            return final_report
+
+        except FileNotFoundError as e:
+            error_msg = f"File not found: {e.filename}"
+            print(f"[EvaluationTool] ERROR: {error_msg}")
+            return {"error": error_msg}
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def _evaluate_answer(self, student_ans: Dict, ref: Dict) -> Dict:
-        """Evaluate single answer based on type"""
-        q_type = ref.get('type', 'unknown')
-        
-        if q_type == 'mcq':
-            return self._evaluate_mcq(student_ans, ref)
-        elif q_type == 'fill_blank':
-            return self._evaluate_fill_blank(student_ans, ref)
-        elif q_type == 'one_word':
-            return self._evaluate_one_word(student_ans, ref)
-        else:
-            return {
-                'q_num': ref['q_num'],
-                'marks_obtained': 0,
-                'marks_total': ref['marks'],
-                'status': 'unsupported_type',
-                'confidence': 0.0
-            }
-    
-    def _evaluate_mcq(self, student_ans: Dict, ref: Dict) -> Dict:
-        """Evaluate MCQ"""
-        student = student_ans.get('answer', '').strip().upper()
-        correct = ref.get('correct', '').strip().upper()
-        
-        is_correct = student == correct
-        confidence = 1.0 if len(student) == 1 else 0.5
-        
-        return {
-            'q_num': ref['q_num'],
-            'marks_obtained': ref['marks'] if is_correct else 0,
-            'marks_total': ref['marks'],
-            'status': 'correct' if is_correct else 'incorrect',
-            'confidence': confidence,
-            'student_answer': student,
-            'correct_answer': correct
-        }
-    
-    def _evaluate_fill_blank(self, student_ans: Dict, ref: Dict) -> Dict:
-        """Evaluate fill in the blank"""
-        student = self._normalize_text(student_ans.get('answer', ''))
-        correct_options = [
-            self._normalize_text(ans) 
-            for ans in ref.get('correct_options', [ref.get('correct', '')])
-        ]
-        
-        # Check exact match
-        if student in correct_options:
-            return {
-                'q_num': ref['q_num'],
-                'marks_obtained': ref['marks'],
-                'marks_total': ref['marks'],
-                'status': 'correct',
-                'confidence': 1.0,
-                'student_answer': student_ans.get('answer', '')
-            }
-        
-        # Check fuzzy match
-        best_similarity = max(
-            [SequenceMatcher(None, student, correct).ratio() 
-             for correct in correct_options]
-        ) if correct_options else 0
-        
-        # Award marks based on similarity threshold
-        if best_similarity >= 0.9:
-            marks = ref['marks']
-            status = 'correct'
-        elif best_similarity >= 0.7:
-            marks = ref['marks'] * 0.5
-            status = 'partial'
-        else:
-            marks = 0
-            status = 'incorrect'
-        
-        return {
-            'q_num': ref['q_num'],
-            'marks_obtained': marks,
-            'marks_total': ref['marks'],
-            'status': status,
-            'confidence': best_similarity,
-            'student_answer': student_ans.get('answer', '')
-        }
-    
-    def _evaluate_one_word(self, student_ans: Dict, ref: Dict) -> Dict:
-        """Evaluate one word answer"""
-        return self._evaluate_fill_blank(student_ans, ref)
-    
-    def _normalize_text(self, text: str) -> str:
-        """Normalize text for comparison"""
-        return re.sub(r'[^\w\s]', '', text.lower().strip())
+            error_msg = f"An unexpected error occurred in EvaluationTool: {str(e)}"
+            print(f"[EvaluationTool] ERROR: {error_msg}")
+            return {"error": error_msg}

@@ -1,0 +1,54 @@
+{
+    "summary": {
+        "total_questions": 7,
+        "correct_answers": 3,
+        "wrong_answers": 4,
+        "unanswered": 0,
+        "accuracy_percent": "42.86%",
+        "precision_of_answered_percent": "42.86%"
+    },
+    "detailed_results": [
+        {
+            "question": "MCQ 1",
+            "student_answer": "B",
+            "correct_answer": "C",
+            "status": "wrong"
+        },
+        {
+            "question": "MCQ 2",
+            "student_answer": "A",
+            "correct_answer": "A",
+            "status": "correct"
+        },
+        {
+            "question": "MCQ 3",
+            "student_answer": "A",
+            "correct_answer": "B",
+            "status": "wrong"
+        },
+        {
+            "question": "MCQ 4",
+            "student_answer": "C",
+            "correct_answer": "A",
+            "status": "wrong"
+        },
+        {
+            "question": "MCQ 5",
+            "student_answer": "A",
+            "correct_answer": "A",
+            "status": "correct"
+        },
+        {
+            "question": "MCQ 6",
+            "student_answer": "C",
+            "correct_answer": "C",
+            "status": "correct"
+        },
+        {
+            "question": "Fill in the blank 1",
+            "student_answer": "4",
+            "correct_answer": "6",
+            "status": "wrong"
+        }
+    ]
+}

@@ -2,7 +2,7 @@
   "multiple_choice": [
     {
       "question_number": "1",
-      "selected_answer": "B"
+      "selected_answer": "C"
     },
     {
       "question_number": "2",
@@ -10,11 +10,11 @@
     },
     {
       "question_number": "3",
-      "selected_answer": "A"
+      "selected_answer": "B"
     },
     {
       "question_number": "4",
-      "selected_answer": "C"
+      "selected_answer": "A"
     },
     {
       "question_number": "5",
@@ -28,7 +28,7 @@
   "fill_in_the_blanks": [
     {
       "question_prompt": "Fill in the blank 1",
-      "written_answer": "4"
+      "written_answer": "6"
     }
   ]
 }

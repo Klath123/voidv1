@@ -1,6 +1,6 @@
 # agents/evaluation_agent.py
 from crewai import Agent
-from tools.evaluation_tool import EvaluationTool
+from tools.evaluation_tool import AnswerEvaluationTool
 from crewai import LLM
 import os
 
@@ -17,7 +17,7 @@ def create_evaluation_agent():
         backstory="""You are an expert in automated grading systems.
         You can handle multiple question types (MCQ, fill-in-the-blank, one-word)
         and provide fair, consistent evaluations with confidence scores.""",
-        tools=[EvaluationTool()],
+        tools=[AnswerEvaluationTool()],
         llm=llm,  # IMPORTANT: Add this
         verbose=True,
         allow_delegation=False
