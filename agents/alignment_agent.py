@@ -1,15 +1,14 @@
 # agents/alignment_agent.py
 from crewai import Agent
 from tools.alignment_tool import AlignmentTool
-from langchain_google_genai import ChatGoogleGenerativeAI
+from crewai import LLM
 import os
 
 # Create LLM
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-pro-latest",
-    verbose=True,
+llm = LLM(
+    model="gemini/gemini-2.5-pro",  # Note the "gemini/" prefix for LiteLLM
     temperature=0.1,
-    google_api_key=os.getenv("GOOGLE_API_KEY")
+    api_key=os.getenv("GOOGLE_API_KEY")
 )
 
 def create_alignment_agent():

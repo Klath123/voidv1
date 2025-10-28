@@ -1,4 +1,4 @@
-from crewai import Crew, Process, Task  # <-- Fixed: Added 'Task' import
+from crewai import Crew, Process, Task 
 from agents.alignment_agent import create_alignment_agent
 from agents.ocr_agent import create_ocr_agent
 from agents.evaluation_agent import create_evaluation_agent
@@ -6,6 +6,10 @@ from agents.validation_agent import create_validation_agent
 from tasks.alignment_tasks import create_alignment_task
 from tasks.ocr_tasks import create_ocr_task
 from tasks.evaluation_tasks import create_evaluation_task
+
+# NOTE: The definition of create_evaluation_task you provided is correct:
+# def create_evaluation_task(agent, student_answers, reference_answers):
+#     ...
 
 class SASESCrew:
     def __init__(self):
@@ -24,9 +28,7 @@ class SASESCrew:
         Process a single answer sheet through the complete pipeline
         """
         
-        # --- This is the new, correct data-passing logic ---
         # 1. Create the 'inputs' dictionary for kickoff.
-        #    This is where all runtime data goes.
         inputs = {
             "template_path": template_path,
             "student_sheet_path": student_sheet_path,
@@ -34,25 +36,31 @@ class SASESCrew:
             "question_regions": question_regions or []
         }
 
-        # --- 2. Create tasks as templates ---
-        #    The 'create_..._task' functions should NOT be passed
-        #    runtime data like 'template_path'. They just create the task.
+        # 2. Create tasks as templates
         
         # Task 1: Alignment
-        # The description for this task should use placeholders:
-        # e.g., "Align {student_sheet_path} with {template_path}"
-        alignment_task = create_alignment_task(self.alignment_agent)
+        alignment_task = create_alignment_task(
+            self.alignment_agent, 
+            template_path, 
+            student_sheet_path
+        )
         
         # Task 2: OCR (depends on alignment)
-        # This task will automatically receive the output of alignment_task
-        # because of the 'context' property.
-        ocr_task = create_ocr_task(self.ocr_agent)
+        ocr_task = create_ocr_task(
+            self.ocr_agent,
+            aligned_image_path="Placeholder", 
+            question_regions=question_regions or [] 
+        )
         ocr_task.context = [alignment_task]
         
         # Task 3: Evaluation (depends on OCR)
-        # This task's description should use the "{reference_answers}" placeholder
-        evaluation_task = create_evaluation_task(self.evaluation_agent)
-        evaluation_task.context = [ocr_task]
+        # **FIX APPLIED HERE:** Passing the two missing required arguments.
+        evaluation_task = create_evaluation_task(
+            self.evaluation_agent,
+            student_answers="OCR_OUTPUT_FROM_CONTEXT", # Placeholder for the OCR output
+            reference_answers=reference_answers          # Uses the method's input argument
+        )
+        evaluation_task.context = [ocr_task] # The evaluation agent will read the student answers from here.
         
         # Task 4: Validation
         validation_task = Task(
@@ -68,7 +76,7 @@ class SASESCrew:
             context=[alignment_task, ocr_task, evaluation_task]
         )
         
-        # --- 3. Create crew ---
+        # 3. Create crew
         crew = Crew(
             agents=[
                 self.alignment_agent,
@@ -86,8 +94,7 @@ class SASESCrew:
             verbose=True
         )
         
-        # --- 4. Execute ---
-        # Pass the 'inputs' dictionary here.
+        # 4. Execute
         result = crew.kickoff(inputs=inputs)
         
         return result
