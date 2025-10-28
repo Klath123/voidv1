@@ -5,7 +5,7 @@ from crewai import LLM
 import os
 
 llm = LLM(
-    model="gemini/gemini-2.5-pro",  # Note the "gemini/" prefix for LiteLLM
+    model="gemini/gemini-2.5-flash",  # Note the "gemini/" prefix for LiteLLM
     temperature=0.1,
     api_key=os.getenv("GOOGLE_API_KEY")
 )

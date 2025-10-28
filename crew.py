@@ -48,13 +48,14 @@ class SASESCrew:
         # Task 2: OCR (depends on alignment)
         ocr_task = create_ocr_task(
             self.ocr_agent,
-            aligned_image_path="Placeholder", 
-            question_regions=question_regions or [] 
+            question_regions=question_regions or [],
+            student_sheet_path=student_sheet_path # <-- New argument
         )
-        ocr_task.context = [alignment_task]
+        ocr_task.context = [alignment_task] # <-- This is still correct!
+        # ...
         
         # Task 3: Evaluation (depends on OCR)
-        # **FIX APPLIED HERE:** Passing the two missing required arguments.
+        # *FIX APPLIED HERE:* Passing the two missing required arguments.
         evaluation_task = create_evaluation_task(
             self.evaluation_agent,
             student_answers="OCR_OUTPUT_FROM_CONTEXT", # Placeholder for the OCR output
