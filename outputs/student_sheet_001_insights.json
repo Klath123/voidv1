@@ -1,0 +1,18 @@
+{
+    "total_questions": 7,
+    "correct_answers": 3,
+    "wrong_answers": 4,
+    "unanswered": 0,
+    "score_percentage": "42.86%",
+    "overall_performance": "You attempted all questions, which is a great start! Your current score indicates that there are several areas where you can significantly improve your understanding.",
+    "strengths": [
+        "You attempted every question, showing good effort and engagement.",
+        "You demonstrated a solid grasp of the material in some multiple-choice questions."
+    ],
+    "areas_for_improvement": [
+        "Carefully review the topics covered by the multiple-choice questions you answered incorrectly (MCQ 1, 3, 4). Pay attention to why the correct answer is right and your chosen answer was not.",
+        "Focus on improving your understanding and technique for 'Fill in the Blank' questions, as this was an area where you struggled.",
+        "Consider reviewing foundational concepts to strengthen your overall knowledge base."
+    ],
+    "motivational_feedback": "Keep up the hard work! With focused review on your areas for improvement, especially the specific question types and topics identified, you will definitely see your scores improve. You've got this!"
+}

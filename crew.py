@@ -3,39 +3,38 @@ from crewai import Crew, Process, Task
 from agents.alignment_agent import create_alignment_agent
 from agents.ocr_agent import create_ocr_agent
 from agents.evaluation_agent import create_evaluation_agent
-from agents.validation_agent import create_validation_agent
+from agents.insight_agent import create_insight_agent
+
+# --- 1. IMPORT THE NEW AGENT ---
+from agents.insight_agent import create_insight_agent
 
 # --- IMPORT ALL THE TASK FUNCTIONS ---
 from tasks.alignment_tasks import create_alignment_task
-
-# --- THIS IS THE KEY IMPORT CHANGE ---
-# Import the two functions from your ocr_tasks.py file
 from tasks.ocr_tasks import (
     create_key_generation_task, 
     create_student_extraction_task
 )
-# --- END CHANGE ---
-
 from tasks.evaluation_tasks import create_evaluation_task
+
+# --- 2. IMPORT THE NEW TASK ---
+from tasks.insight_tasks import create_insight_task
+
 
 class SASESCrew:
     def __init__(self):
-        # Create agents (this part is unchanged)
+        # Create agents
         self.alignment_agent = create_alignment_agent()
         self.ocr_agent = create_ocr_agent()
         self.evaluation_agent = create_evaluation_agent()
-        self.validation_agent = create_validation_agent()
+        self.validation_agent = create_insight_agent()
+        
+        # --- 3. ADD THE NEW AGENT ---
+        self.insight_agent = create_insight_agent()
     
-    # --- THIS METHOD SIGNATURE IS UPDATED ---
-    # It no longer needs 'reference_answers'
-    # It now REQUIRES 'teacher_sheet_path'
     def process_answer_sheet(self, 
                              template_path: str,
                              teacher_sheet_path: str,
                              student_sheet_path: str):
-        """
-        Process a single answer sheet through the complete, image-based pipeline.
-        """
         
         # --- Define output file paths based on inputs ---
         teacher_key_json_path = f"outputs/{os.path.splitext(os.path.basename(teacher_sheet_path))[0]}_key.json"
@@ -63,7 +62,6 @@ class SASESCrew:
             teacher_sheet_path,
             teacher_key_json_path
         )
-        # Set dependency on teacher alignment
         key_generation_task.context = [teacher_alignment_task]
         
         student_extraction_task = create_student_extraction_task(
@@ -71,27 +69,34 @@ class SASESCrew:
             student_sheet_path,
             student_answers_json_path
         )
-        # Set dependency on student alignment
         student_extraction_task.context = [student_alignment_task]
         
         # --- Evaluation Phase (Task 5) ---
         evaluation_task = create_evaluation_task(
             self.evaluation_agent,
-            teacher_key_json_path,    # Path to the key
-            student_answers_json_path, # Path to the student answers
-            report_output_path         # Path for the final report
+            teacher_key_json_path,
+            student_answers_json_path,
+            report_output_path
         )
-        # Set dependency on *both* OCR tasks
         evaluation_task.context = [key_generation_task, student_extraction_task]
         
-        # --- Validation Phase (Task 6) ---
+        # --- 4. ADD THE NEW INSIGHT TASK (Now Task 6) ---
+        insight_task = create_insight_task(
+            self.insight_agent,
+            report_output_path  # It takes the report path as input
+        )
+        # Set dependency on the evaluation task
+        insight_task.context = [evaluation_task]
+
+        # --- Validation Phase (Now Task 7) ---
         validation_task = Task(
             description="""
-            Review the complete evaluation pipeline.
-            Check alignment confidence from both alignment tasks.
-            Review OCR quality from both OCR tasks.
-            Validate evaluation results from the evaluation task.
-            Flag cases needing manual review and provide a final quality report.
+            Review the complete evaluation and insight pipeline.
+            Check alignment confidence.
+            Review OCR quality.
+            Validate evaluation results.
+            Verify that the final insights are generated and saved.
+            Flag cases needing manual review.
             """,
             agent=self.validation_agent,
             expected_output="Final quality report as a JSON object, with a 'manual_review_needed' flag.",
@@ -100,33 +105,33 @@ class SASESCrew:
                 student_alignment_task,
                 key_generation_task,
                 student_extraction_task,
-                evaluation_task
+                evaluation_task,
+                insight_task  # --- 5. ADD INSIGHT TASK TO FINAL CONTEXT ---
             ]
         )
         
-        # 2. Create crew
+        # 6. ADD NEW AGENT AND TASK TO THE CREW
         crew = Crew(
             agents=[
                 self.alignment_agent,
                 self.ocr_agent,
                 self.evaluation_agent,
+                self.insight_agent,  # <-- Added new agent
                 self.validation_agent
             ],
             tasks=[
-                # Tasks will run in correct order based on dependencies
                 teacher_alignment_task,
                 student_alignment_task,
                 key_generation_task,
                 student_extraction_task,
                 evaluation_task,
+                insight_task,  # <-- Added new task
                 validation_task
             ],
             process=Process.sequential,
             verbose=True
         )
         
-        # 3. Execute
-        # No inputs dict is needed, paths are passed via task descriptions
         result = crew.kickoff()
         
         return result
