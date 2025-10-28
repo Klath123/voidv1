@@ -1,12 +1,15 @@
+# api.py - FIRST LINES
+from dotenv import load_dotenv
+load_dotenv()  # Must be BEFORE any other imports that use env vars
+
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import shutil
 import os
-from crew import SASESCrew
+from crew import SASESCrew  # This imports agents which need GOOGLE_API_KEY
 import json
-
 app = FastAPI(title="SASES API")
 
 # Initialize crew
@@ -72,4 +75,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app)

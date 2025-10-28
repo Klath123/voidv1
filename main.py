@@ -1,3 +1,9 @@
+
+# Add these 2 lines at the top of api.py
+from dotenv import load_dotenv
+load_dotenv()
+
+
 from crew import SASESCrew
 import json
 

@@ -1,4 +1,4 @@
-from crewai_tools import BaseTool
+from crewai.tools import BaseTool
 from typing import Dict, List
 import re
 from difflib import SequenceMatcher
@@ -11,8 +11,6 @@ class EvaluationTool(BaseTool):
              reference_answers: List[Dict]) -> dict:
         """
         Evaluate student answers
-        student_answers: [{'q_num': 1, 'type': 'mcq', 'answer': 'A'}, ...]
-        reference_answers: [{'q_num': 1, 'type': 'mcq', 'correct': 'A', 'marks': 1}, ...]
         """
         try:
             results = []
@@ -38,9 +36,7 @@ class EvaluationTool(BaseTool):
                     continue
                 
                 # Evaluate based on question type
-                evaluation = self._evaluate_answer(
-                    student_ans, ref
-                )
+                evaluation = self._evaluate_answer(student_ans, ref)
                 
                 results.append(evaluation)
                 total_marks += ref['marks']
@@ -62,7 +58,7 @@ class EvaluationTool(BaseTool):
     
     def _evaluate_answer(self, student_ans: Dict, ref: Dict) -> Dict:
         """Evaluate single answer based on type"""
-        q_type = ref['type']
+        q_type = ref.get('type', 'unknown')
         
         if q_type == 'mcq':
             return self._evaluate_mcq(student_ans, ref)
@@ -81,8 +77,8 @@ class EvaluationTool(BaseTool):
     
     def _evaluate_mcq(self, student_ans: Dict, ref: Dict) -> Dict:
         """Evaluate MCQ"""
-        student = student_ans['answer'].strip().upper()
-        correct = ref['correct'].strip().upper()
+        student = student_ans.get('answer', '').strip().upper()
+        correct = ref.get('correct', '').strip().upper()
         
         is_correct = student == correct
         confidence = 1.0 if len(student) == 1 else 0.5
@@ -99,10 +95,10 @@ class EvaluationTool(BaseTool):
     
     def _evaluate_fill_blank(self, student_ans: Dict, ref: Dict) -> Dict:
         """Evaluate fill in the blank"""
-        student = self._normalize_text(student_ans['answer'])
+        student = self._normalize_text(student_ans.get('answer', ''))
         correct_options = [
             self._normalize_text(ans) 
-            for ans in ref.get('correct_options', [ref['correct']])
+            for ans in ref.get('correct_options', [ref.get('correct', '')])
         ]
         
         # Check exact match
@@ -113,14 +109,14 @@ class EvaluationTool(BaseTool):
                 'marks_total': ref['marks'],
                 'status': 'correct',
                 'confidence': 1.0,
-                'student_answer': student_ans['answer']
+                'student_answer': student_ans.get('answer', '')
             }
         
         # Check fuzzy match
         best_similarity = max(
             [SequenceMatcher(None, student, correct).ratio() 
              for correct in correct_options]
-        )
+        ) if correct_options else 0
         
         # Award marks based on similarity threshold
         if best_similarity >= 0.9:
@@ -139,7 +135,7 @@ class EvaluationTool(BaseTool):
             'marks_total': ref['marks'],
             'status': status,
             'confidence': best_similarity,
-            'student_answer': student_ans['answer']
+            'student_answer': student_ans.get('answer', '')
         }
     
     def _evaluate_one_word(self, student_ans: Dict, ref: Dict) -> Dict:

@@ -1,4 +1,4 @@
-from crewai import Crew, Process
+from crewai import Crew, Process, Task  # <-- Fixed: Added 'Task' import
 from agents.alignment_agent import create_alignment_agent
 from agents.ocr_agent import create_ocr_agent
 from agents.evaluation_agent import create_evaluation_agent
@@ -16,53 +16,59 @@ class SASESCrew:
         self.validation_agent = create_validation_agent()
     
     def process_answer_sheet(self, 
-                            template_path: str,
-                            student_sheet_path: str,
-                            reference_answers: list,
-                            question_regions: list = None):
+                             template_path: str,
+                             student_sheet_path: str,
+                             reference_answers: list,
+                             question_regions: list = None):
         """
         Process a single answer sheet through the complete pipeline
         """
         
+        # --- This is the new, correct data-passing logic ---
+        # 1. Create the 'inputs' dictionary for kickoff.
+        #    This is where all runtime data goes.
+        inputs = {
+            "template_path": template_path,
+            "student_sheet_path": student_sheet_path,
+            "reference_answers": reference_answers,
+            "question_regions": question_regions or []
+        }
+
+        # --- 2. Create tasks as templates ---
+        #    The 'create_..._task' functions should NOT be passed
+        #    runtime data like 'template_path'. They just create the task.
+        
         # Task 1: Alignment
-        alignment_task = create_alignment_task(
-            self.alignment_agent,
-            template_path,
-            student_sheet_path
-        )
+        # The description for this task should use placeholders:
+        # e.g., "Align {student_sheet_path} with {template_path}"
+        alignment_task = create_alignment_task(self.alignment_agent)
         
         # Task 2: OCR (depends on alignment)
-        ocr_task = create_ocr_task(
-            self.ocr_agent,
-            "{alignment_output.aligned_image_path}",
-            question_regions or []
-        )
+        # This task will automatically receive the output of alignment_task
+        # because of the 'context' property.
+        ocr_task = create_ocr_task(self.ocr_agent)
         ocr_task.context = [alignment_task]
         
         # Task 3: Evaluation (depends on OCR)
-        evaluation_task = create_evaluation_task(
-            self.evaluation_agent,
-            "{ocr_output.extracted_answers}",
-            reference_answers
-        )
+        # This task's description should use the "{reference_answers}" placeholder
+        evaluation_task = create_evaluation_task(self.evaluation_agent)
         evaluation_task.context = [ocr_task]
         
         # Task 4: Validation
         validation_task = Task(
             description="""
-            Review the complete evaluation pipeline:
-            1. Check alignment confidence
-            2. Review OCR quality
-            3. Validate evaluation results
-            4. Flag cases needing manual review (confidence < 0.7)
-            5. Provide final quality report
+            Review the complete evaluation pipeline.
+            Check alignment confidence from the alignment task.
+            Review OCR quality from the OCR task.
+            Validate evaluation results from the evaluation task.
+            Flag cases needing manual review and provide a final quality report.
             """,
             agent=self.validation_agent,
-            expected_output="Quality report with flags for manual review",
+            expected_output="Final quality report as a JSON object, with a 'manual_review_needed' flag.",
             context=[alignment_task, ocr_task, evaluation_task]
         )
         
-        # Create crew
+        # --- 3. Create crew ---
         crew = Crew(
             agents=[
                 self.alignment_agent,
@@ -80,7 +86,8 @@ class SASESCrew:
             verbose=True
         )
         
-        # Execute
-        result = crew.kickoff()
+        # --- 4. Execute ---
+        # Pass the 'inputs' dictionary here.
+        result = crew.kickoff(inputs=inputs)
         
         return result
